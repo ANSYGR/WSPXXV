@@ -1,0 +1,14 @@
+h1 = @thread["title"]
+
+h2 Inlägg
+- @posts.each do |p|
+  .post
+    p = p["body"]
+    small = p["created_at"]
+    hr
+
+h2 Svara
+form action="/forum/#{@thread['id']}/reply" method="post"
+  textarea name="body"
+  br
+  button type="submit" Skicka

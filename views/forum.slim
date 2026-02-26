@@ -1,2 +1,11 @@
 h1 Forum
-p Nyligen publicerat:
+a href="/forum/new" Skapa ny tråd
+
+- if @threads.empty?
+  p Inga trådar ännu.
+- else
+  ul
+    - @threads.each do |t|
+      li
+        a href="/forum/#{t['id']}" = t['title']
+        |  (#{t['posts_count']} inlägg)
