@@ -1,0 +1,30 @@
+h2 Konto
+p
+  | Välkommen, 
+  strong= @user['name']
+
+p
+  | Du är inloggad.
+
+h3 Dina trådar
+- if @threads.empty?
+  p Du har inte skapat några trådar än.
+- else
+  ul
+    - @threads.each do |thread|
+      li
+        a href="/forum/#{thread['id']}"
+          = thread['title']
+        |  - skapad: #{thread['created_at']}
+
+h3 Dina inlägg
+- if @posts.empty?
+  p Du har inte skrivit några inlägg än.
+- else
+  ul
+    - @posts.each do |post|
+      li
+        a href="/forum/#{post['thread_id']}"
+          = post['thread_title']
+        |  • #{post['created_at']}
+        p = post['body']

@@ -9,12 +9,20 @@ html
       | nav a { margin-right: 1rem }
   body
     nav
+      h1 The Site
       a href='/' Home
       a href='/marketplace' Marketplace
       a href='/forum' Forum
       a href='/shop' Shop
+      - if logged_in?
+        a href='/account' Konto
+        span | Inloggad som #{current_user['name']}
+        a href='/logout' Logga ut
+      - else
+        a href='/login' Logga in
     hr
     == yield
     hr
     footer
-    p Footer
+    p 2024 Webbserverprogrammering, Andy Granfors
+    p Tack för att du besöker min webbplats!

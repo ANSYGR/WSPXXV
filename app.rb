@@ -10,14 +10,164 @@ set :public_folder, File.dirname(__FILE__) + '/public'
 def get_db
   db = SQLite3::Database.new("db/app.db")
   db.results_as_hash = true
+  db.execute("PRAGMA foreign_keys = ON")
   db
 end
 
+def column_exists?(db, table, column)
+  columns = db.execute("PRAGMA table_info(#{table})")
+  columns.any? { |col| col["name"] == column }
+end
 
+def setup_database
+  db = get_db
+
+  db.execute <<~SQL
+    CREATE TABLE IF NOT EXISTS user (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      pwd_digest TEXT NOT NULL
+    )
+  SQL
+
+  db.execute <<~SQL
+    CREATE TABLE IF NOT EXISTS forum_threads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  SQL
+
+  db.execute <<~SQL
+    CREATE TABLE IF NOT EXISTS forum_posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id INTEGER NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(thread_id) REFERENCES forum_threads(id)
+    )
+  SQL
+
+  unless column_exists?(db, "forum_threads", "user_id")
+    db.execute("ALTER TABLE forum_threads ADD COLUMN user_id INTEGER")
+  end
+
+  unless column_exists?(db, "forum_posts", "user_id")
+    db.execute("ALTER TABLE forum_posts ADD COLUMN user_id INTEGER")
+  end
+end
+
+configure do
+  setup_database
+end
+
+helpers do
+  def current_user
+    return nil unless session[:user_id]
+    db = get_db
+    db.execute("SELECT * FROM user WHERE id = ?", [session[:user_id]]).first
+  end
+
+  def logged_in?
+    !current_user.nil?
+  end
+
+  def require_login!
+    redirect '/login?error=Du+måste+logga+in' unless logged_in?
+  end
+end
 
 get '/' do
   @title = 'Home'
   slim :index
+end
+
+get '/home' do
+  @title = 'Home'
+  slim :index
+end
+
+get '/login' do
+  @title = 'Login'
+  slim :login
+end
+
+post '/login' do
+  name = (params["name"] || "").strip
+  pwd  = params["pwd"] || ""
+
+  db = get_db
+  user = db.execute("SELECT id, name, pwd_digest FROM user WHERE name = ?", [name]).first
+
+  if user && BCrypt::Password.new(user["pwd_digest"]) == pwd
+    session[:user_id] = user["id"]
+    redirect '/forum'
+  else
+    redirect '/login?error=Fel+användarnamn+eller+lösenord'
+  end
+end
+
+post '/user' do
+  name = (params["name"] || "").strip
+  pwd = params["pwd"] || ""
+  pwd_confirm = params["pwd_confirm"] || ""
+
+  if name.empty?
+    redirect '/login?error=Användarnamn+saknas'
+  end
+
+  if pwd.length < 3
+    redirect '/login?error=Lösenordet+måste+vara+minst+3+tecken'
+  end
+
+  if pwd != pwd_confirm
+    redirect '/login?error=Lösenorden+matchar+inte'
+  end
+
+  db = get_db
+  existing_user = db.execute("SELECT id FROM user WHERE name = ?", [name]).first
+
+  if existing_user
+    redirect '/login?error=Användarnamnet+är+redan+taget'
+  else
+    pwd_digest = BCrypt::Password.create(pwd)
+    db.execute("INSERT INTO user(name, pwd_digest) VALUES(?, ?)", [name, pwd_digest])
+
+    user = db.execute("SELECT id FROM user WHERE name = ?", [name]).first
+    session[:user_id] = user["id"]
+
+    redirect '/forum'
+  end
+end
+
+get '/logout' do
+  session.clear
+  redirect '/'
+end
+
+get '/account' do
+  require_login!
+  @title = 'Mitt konto'
+  db = get_db
+  @user = current_user
+
+  @threads = db.execute(<<~SQL, [@user['id']])
+    SELECT t.id, t.title, t.created_at
+    FROM forum_threads t
+    WHERE t.user_id = ?
+    ORDER BY t.created_at DESC
+  SQL
+
+  @posts = db.execute(<<~SQL, [@user['id']])
+    SELECT p.id, p.body, p.created_at, t.id AS thread_id, t.title AS thread_title
+    FROM forum_posts p
+    JOIN forum_threads t ON p.thread_id = t.id
+    WHERE p.user_id = ?
+    ORDER BY p.created_at DESC
+    LIMIT 50
+  SQL
+
+  slim :account
 end
 
 get '/marketplace' do
@@ -25,56 +175,73 @@ get '/marketplace' do
   slim :marketplace
 end
 
+get '/shop' do
+  @title = 'Shop'
+  slim :shop
+end
 
-#FORUM
-
+# FORUM
 
 get '/forum' do
   @title = 'Forum'
   db = get_db
+
   @threads = db.execute(<<~SQL)
     SELECT
       t.id,
       t.title,
       t.created_at,
+      u.name AS author_name,
       COUNT(p.id) AS posts_count,
       MAX(p.created_at) AS last_post_at
     FROM forum_threads t
+    LEFT JOIN user u ON u.id = t.user_id
     LEFT JOIN forum_posts p ON p.thread_id = t.id
-    GROUP BY t.id
-    ORDER BY COALESCE(last_post_at, t.created_at) DESC
+    GROUP BY t.id, t.title, t.created_at, u.name
+    ORDER BY COALESCE(MAX(p.created_at), t.created_at) DESC
   SQL
+
   slim :forum
 end
 
 get '/forum/new' do
+  require_login!
   @title = 'New thread'
   slim :"forum/new"
 end
 
 post '/forum' do
+  require_login!
+
   title = (params[:title] || "").strip
-  body  = (params[:body]  || "").strip
+  body  = (params[:body] || "").strip
 
   halt 400, "Title required" if title.empty?
-  halt 400, "Body required"  if body.empty?
+  halt 400, "Body required" if body.empty?
 
   db = get_db
-  db.transaction
 
-  db.execute("INSERT INTO forum_threads (title, created_at) VALUES (?, datetime('now'))", [title])
-  thread_id = db.get_first_value("SELECT last_insert_rowid()")
+  begin
+    db.transaction
 
-  db.execute(<<~SQL, [thread_id, body])
-    INSERT INTO forum_posts (thread_id, body, created_at)
-    VALUES (?, ?, datetime('now'))
-  SQL
+    db.execute(
+      "INSERT INTO forum_threads (title, user_id, created_at) VALUES (?, ?, datetime('now'))",
+      [title, session[:user_id]]
+    )
 
-  db.commit
-  redirect "/forum/#{thread_id}"
-rescue => e
-  db.rollback rescue nil
-  halt 500, e.message
+    thread_id = db.get_first_value("SELECT last_insert_rowid()")
+
+    db.execute(
+      "INSERT INTO forum_posts (thread_id, user_id, body, created_at) VALUES (?, ?, ?, datetime('now'))",
+      [thread_id, session[:user_id], body]
+    )
+
+    db.commit
+    redirect "/forum/#{thread_id}"
+  rescue => e
+    db.rollback rescue nil
+    halt 500, e.message
+  end
 end
 
 get '/forum/:id' do
@@ -82,19 +249,33 @@ get '/forum/:id' do
   id = params[:id]
   db = get_db
 
-  @thread = db.execute("SELECT * FROM forum_threads WHERE id = ?", [id]).first
+  @thread = db.execute(<<~SQL, [id]).first
+    SELECT
+      t.*,
+      u.name AS author_name
+    FROM forum_threads t
+    LEFT JOIN user u ON u.id = t.user_id
+    WHERE t.id = ?
+  SQL
+
   halt 404, "Thread not found" unless @thread
 
   @posts = db.execute(<<~SQL, [id])
-    SELECT * FROM forum_posts
-    WHERE thread_id = ?
-    ORDER BY created_at ASC
+    SELECT
+      p.*,
+      u.name AS author_name
+    FROM forum_posts p
+    LEFT JOIN user u ON u.id = p.user_id
+    WHERE p.thread_id = ?
+    ORDER BY p.created_at ASC, p.id ASC
   SQL
 
   slim :"forum/show"
 end
 
 post '/forum/:id/reply' do
+  require_login!
+
   id = params[:id]
   body = (params[:body] || "").strip
   halt 400, "Body required" if body.empty?
@@ -103,17 +284,10 @@ post '/forum/:id/reply' do
   thread = db.execute("SELECT id FROM forum_threads WHERE id = ?", [id]).first
   halt 404, "Thread not found" unless thread
 
-  db.execute("INSERT INTO forum_posts (thread_id, body, created_at) VALUES (?, ?, datetime('now'))", [id, body])
+  db.execute(
+    "INSERT INTO forum_posts (thread_id, user_id, body, created_at) VALUES (?, ?, ?, datetime('now'))",
+    [id, session[:user_id], body]
+  )
+
   redirect "/forum/#{id}"
-end
-
-get '/marketplace' do
-	@title = 'Marketplace'
-	slim :marketplace
-end
-
-
-get '/shop' do
-	@title = 'Shop'
-	slim :shop
 end

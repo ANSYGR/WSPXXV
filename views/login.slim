@@ -1,0 +1,15 @@
+p Logga in 
+form action="/login" method="post" 
+    input type="text" name="name" placeholder="namn"
+    input type="text" name="pwd" placeholder="lösenord"
+    input type="submit" value="logga in" 
+
+hr
+p ny användare 
+- if params[:error]
+  p style="color: red;" = params[:error]
+form action="/user" method="post" 
+    input type="text" name="name" placeholder="namn"
+    input type="text" name="pwd" placeholder="lösenord"
+    input type="text" name="pwd_confirm" placeholder="lösenord igen"
+    input type="submit" value="skapa ny användare"
