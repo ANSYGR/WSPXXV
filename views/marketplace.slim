@@ -1,2 +1,19 @@
 h1 Marketplace
-p  Tillgängliga varor till salu:
+p Tillgängliga varor till salu:
+- if logged_in?
+  p
+    a href='/marketplace/new' Lägg upp ny vara
+
+- if @items.empty?
+  p Ingen vara tillgänglig just nu.
+- else
+  ul
+    - @items.each do |item|
+      li
+        h3
+          a href="/marketplace/#{item['id']}"= item['title']
+        p Pris: #{sprintf('%.2f', item['price'])} kr
+        p Säljare: #{item['seller_name'] || 'Okänd'}
+        - if item['image_url'] && !item['image_url'].strip.empty?
+          img src=item['image_url'] alt=item['title'] style='max-width:200px;display:block;margin:0.5rem 0;'
+        p = item['description']

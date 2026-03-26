@@ -1,0 +1,19 @@
+h1 Lägg upp vara
+form method="post" action="/marketplace"
+  p
+    label Titel
+    input type="text" name="title" 
+  p
+    label Beskrivning
+    textarea name="description" rows="5" 
+  p
+    label Bildadress (URL)
+    input type="url" name="image_url" placeholder="https://..."
+  p
+    label Pris (kr)
+    input type="number" name="price" step="0.01" min="0" 
+  p
+    button type="submit" Skapa
+
+p
+  a href="/marketplace" Tillbaka till marketplace

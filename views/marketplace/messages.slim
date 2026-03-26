@@ -1,0 +1,30 @@
+h1 Dina marknadsplatsmeddelanden
+
+h2 Mottagna meddelanden
+- if @received_messages.empty?
+  p Inga mottagna meddelanden.
+- else
+  ul
+    - @received_messages.each do |msg|
+      li
+        p
+          strong Från: #{msg['sender_name']}
+          |  för objekt: #{msg['item_title']}
+          |  (#{msg['created_at']})
+        p = msg['body']
+
+h2 Skickade meddelanden
+- if @sent_messages.empty?
+  p Inga skickade meddelanden.
+- else
+  ul
+    - @sent_messages.each do |msg|
+      li
+        p
+          strong Till: #{msg['receiver_name']}
+          |  för objekt: #{msg['item_title']}
+          |  (#{msg['created_at']})
+        p = msg['body']
+
+p
+  a href='/marketplace' Gå tillbaka till marketplace

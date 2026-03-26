@@ -1,0 +1,44 @@
+h1= @item['title']
+if @item['image_url'] && !@item['image_url'].strip.empty?
+  img src=@item['image_url'] alt=@item['title'] style='max-width:300px;display:block;margin:0.5rem 0;'
+p Beskrivning: #{@item['description']}
+p Pris: #{sprintf('%.2f', @item['price'])} kr
+p Säljare: #{@item['seller_name'] || 'Okänd'}
+
+h2 Skicka meddelande till säljaren
+- if logged_in?
+  form method="post" action="/marketplace/#{@item['id']}/message"
+    textarea name="body" rows="4" 
+    br
+    button type="submit" Skicka
+- else
+  p Du måste vara inloggad för att skicka meddelande.
+
+h2 Meddelanden
+- if !logged_in?
+  p Du måste vara inloggad för att se meddelanden.
+- elsif current_user['id'] == @item['user_id']
+  - if @messages.empty?
+    p Inga meddelanden än.
+  - else
+    ul
+      - @messages.each do |msg|
+        li
+          p
+            strong #{msg['sender_name']} -> #{msg['receiver_name']}
+            |  (#{msg['created_at']})
+          p = msg['body']
+- else
+  - if @messages.empty?
+    p Du har inga meddelanden för den här varan.
+  - else
+    ul
+      - @messages.each do |msg|
+        li
+          p
+            strong #{msg['sender_name']} -> #{msg['receiver_name']}
+            |  (#{msg['created_at']})
+          p = msg['body']
+
+p
+  a href="/marketplace" Tillbaka till marketplace

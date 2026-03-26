@@ -28,3 +28,29 @@ h3 Dina inlägg
           = post['thread_title']
         |  • #{post['created_at']}
         p = post['body']
+
+h3 Dina marknadsplatsobjekt
+- if @marketplace_items.empty?
+  p Du har inte listat några varor än.
+- else
+  ul
+    - @marketplace_items.each do |item|
+      li
+        a href="/marketplace/#{item['id']}"= item['title']
+        |  • #{sprintf('%.2f', item['price'])} kr
+
+h3 Mottagna meddelanden (marknadsplats)
+- if @marketplace_received_messages.empty?
+  p Inga meddelanden än.
+- else
+  ul
+    - @marketplace_received_messages.each do |msg|
+      li
+        p
+          strong Från: #{msg['sender_name']}
+          |  för objekt: #{msg['item_title']}
+          |  (#{msg['created_at']})
+        p = msg['body']
+
+p
+  a href='/marketplace/messages' Visa alla meddelanden

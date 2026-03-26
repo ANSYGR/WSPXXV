@@ -16,6 +16,7 @@ html
       a href='/shop' Shop
       - if logged_in?
         a href='/account' Konto
+        a href='/marketplace/messages' Meddelanden
         span | Inloggad som #{current_user['name']}
         a href='/logout' Logga ut
       - else
