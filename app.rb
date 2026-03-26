@@ -270,7 +270,6 @@ get '/marketplace/:id' do
     user_id = current_user['id']
 
     if user_id == @item['user_id']
-      # Seller sees all messages for their item
       @messages = db.execute(<<~SQL, [item_id])
         SELECT mm.*, s.name AS sender_name, r.name AS receiver_name
         FROM marketplace_messages mm
@@ -280,7 +279,6 @@ get '/marketplace/:id' do
         ORDER BY mm.created_at DESC
       SQL
     else
-      # Other logged-in users only see their own messages (sent to seller) for the item
       @messages = db.execute(<<~SQL, [item_id, user_id, user_id])
         SELECT mm.*, s.name AS sender_name, r.name AS receiver_name
         FROM marketplace_messages mm
