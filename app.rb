@@ -1,3 +1,4 @@
+#integrera libraries
 require 'sinatra'
 require 'slim'
 require 'sqlite3'
@@ -7,6 +8,7 @@ require 'bcrypt'
 enable :sessions
 set :public_folder, File.dirname(__FILE__) + '/public'
 
+# Funktion för att ansluta till databasen
 def get_db
   db = SQLite3::Database.new("db/app.db")
   db.results_as_hash = true
@@ -14,6 +16,7 @@ def get_db
   db
 end
 
+# Funktion för att kolla om en kolumn finns i en tabell
 def column_exists?(db, table, column)
   columns = db.execute("PRAGMA table_info(#{table})")
   columns.any? { |col| col["name"] == column }
@@ -88,6 +91,7 @@ configure do
   setup_database
 end
 
+# Hjälpmetoder för användarhantering och autentisering
 helpers do
   def current_user
     return nil unless session[:user_id]
@@ -104,6 +108,7 @@ helpers do
   end
 end
 
+# Routes
 get '/' do
   @title = 'Home'
   slim :index
@@ -119,6 +124,7 @@ get '/login' do
   slim :login
 end
 
+# inloggning och registrering
 post '/login' do
   name = (params["name"] || "").strip
   pwd  = params["pwd"] || ""
@@ -167,11 +173,13 @@ post '/user' do
   end
 end
 
+# Logout route 
 get '/logout' do
   session.clear
   redirect '/'
 end
 
+# Account page showing user's threads, posts, marketplace items and messages
 get '/account' do
   require_login!
   @title = 'Mitt konto'
@@ -210,6 +218,7 @@ get '/account' do
   slim :account
 end
 
+# MARKETPLACE
 get '/marketplace' do
   @title = 'Marketplace'
   db = get_db
@@ -222,12 +231,14 @@ get '/marketplace' do
   slim :marketplace
 end
 
+# formuläret för att lägga upp en ny item
 get '/marketplace/new' do
   require_login!
   @title = 'Lägg upp item'
   slim :'marketplace/new'
 end
 
+# hantera formuläret för att lägga upp en ny item
 post '/marketplace' do
   require_login!
   title = (params['title'] || '').strip
@@ -252,6 +263,7 @@ post '/marketplace' do
   redirect '/marketplace'
 end
 
+# visa en item och dess meddelanden om man är inloggad och har rätt att se dem
 get '/marketplace/:id' do
   @title = 'Marketplace item'
   db = get_db
@@ -264,6 +276,7 @@ get '/marketplace/:id' do
   SQL
 
   halt 404, 'Item hittades inte' unless @item
+
 
   @messages = []
   if logged_in?
