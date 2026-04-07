@@ -1,10 +1,19 @@
+<!-- Visa en tråd och dess inlägg, samt ett formulär för att svara på tråden. Inlägg kan redigeras eller tas bort av inläggsförfattaren eller admin. -->
+
 h1 = @thread["title"]
 
 h2 Inlägg
 - @posts.each do |p|
   .post
     p = p["body"]
-    small = p["created_at"]
+    small
+      = p["author_name"] || "Okänd"
+      |  - #{p["created_at"]}
+    - if logged_in? && (current_user['id'] == p['user_id'] || admin?)
+      a href="/forum/#{@thread['id']}/post/#{p['id']}/edit" Redigera
+      |  |
+      form action="/forum/#{@thread['id']}/post/#{p['id']}/delete" method="post" style="display:inline;"
+        button type="submit" onclick="return confirm('Är du säker på att du vill ta bort detta inlägg?')" Ta bort
     hr
 
 h2 Svara

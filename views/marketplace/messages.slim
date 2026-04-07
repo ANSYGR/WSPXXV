@@ -1,3 +1,5 @@
+<!-- Visa användarens marknadsplatsmeddelanden, både mottagna och skickade. Användaren kan redigera eller ta bort sina skickade meddelanden. -->
+
 h1 Dina marknadsplatsmeddelanden
 
 h2 Mottagna meddelanden
@@ -24,6 +26,11 @@ h2 Skickade meddelanden
           strong Till: #{msg['receiver_name']}
           |  för objekt: #{msg['item_title']}
           |  (#{msg['created_at']})
+          |  
+          a href="/marketplace/#{msg['item_id']}/message/#{msg['id']}/edit" Redigera
+          |  |
+          form action="/marketplace/#{msg['item_id']}/message/#{msg['id']}/delete" method="post" style="display:inline;"
+            button type="submit" onclick="return confirm('Är du säker på att du vill ta bort detta meddelande?')" Ta bort
         p = msg['body']
 
 p

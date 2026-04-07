@@ -1,0 +1,21 @@
+<!-- Formulär för att redigera en vara. Endast tillgängligt för säljaren eller admin. -->
+
+h1 Redigera vara
+
+form action="/marketplace/#{@item['id']}/edit" method="post"
+  label for="title" Titel:
+  input type="text" name="title" value=@item['title'] required
+  br
+  label for="description" Beskrivning:
+  textarea name="description" rows="4" required = @item['description']
+  br
+  label for="image_url" Bild URL:
+  input type="url" name="image_url" value=@item['image_url']
+  br
+  label for="price" Pris:
+  input type="number" name="price" step="0.01" value=@item['price'] required
+  br
+  button type="submit" Spara ändringar
+
+p
+  a href="/marketplace/#{@item['id']}" Tillbaka till varan

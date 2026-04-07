@@ -1,9 +1,16 @@
+<!-- Visa en vara på marknadsplatsen, inklusive titel, bild, beskrivning, pris och säljare. Inloggade användare kan skicka meddelanden till säljaren. Säljaren kan se och hantera sina meddelanden. Säljaren eller admin kan redigera eller ta bort varan. -->
+
 h1= @item['title']
 if @item['image_url'] && !@item['image_url'].strip.empty?
-  img src=@item['image_url'] alt=@item['title'] style='max-width:300px;display:block;margin:0.5rem 0;'
+  img src="#{@item['image_url']}" alt="#{@item['title']}" style='max-width:300px;display:block;margin:0.5rem 0;'
 p Beskrivning: #{@item['description']}
 p Pris: #{sprintf('%.2f', @item['price'])} kr
 p Säljare: #{@item['seller_name'] || 'Okänd'}
+- if logged_in? && (current_user['id'] == @item['user_id'] || admin?)
+  a href="/marketplace/#{@item['id']}/edit" Redigera
+  |  |
+  form action="/marketplace/#{@item['id']}/delete" method="post" style="display:inline;"
+    button type="submit" onclick="return confirm('Är du säker på att du vill ta bort denna vara?')" Ta bort
 
 h2 Skicka meddelande till säljaren
 - if logged_in?
@@ -27,6 +34,12 @@ h2 Meddelanden
           p
             strong #{msg['sender_name']} -> #{msg['receiver_name']}
             |  (#{msg['created_at']})
+            - if current_user['id'] == msg['sender_id'] || admin?
+              |  
+              a href="/marketplace/#{@item['id']}/message/#{msg['id']}/edit" Redigera
+              |  |
+              form action="/marketplace/#{@item['id']}/message/#{msg['id']}/delete" method="post" style="display:inline;"
+                button type="submit" onclick="return confirm('Är du säker på att du vill ta bort detta meddelande?')" Ta bort
           p = msg['body']
 - else
   - if @messages.empty?
@@ -38,6 +51,12 @@ h2 Meddelanden
           p
             strong #{msg['sender_name']} -> #{msg['receiver_name']}
             |  (#{msg['created_at']})
+            - if current_user['id'] == msg['sender_id'] || admin?
+              |  
+              a href="/marketplace/#{@item['id']}/message/#{msg['id']}/edit" Redigera
+              |  |
+              form action="/marketplace/#{@item['id']}/message/#{msg['id']}/delete" method="post" style="display:inline;"
+                button type="submit" onclick="return confirm('Är du säker på att du vill ta bort detta meddelande?')" Ta bort
           p = msg['body']
 
 p

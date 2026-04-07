@@ -1,0 +1,11 @@
+<!-- Formulär för att redigera ett meddelande i marknadsplatsen. Endast tillgängligt för meddelandets författare eller admin. -->
+
+h1 Redigera meddelande
+
+form action="/marketplace/#{@item_id}/message/#{@message['id']}/edit" method="post"
+  textarea name="body" rows="4" = @message['body']
+  br
+  button type="submit" Spara ändringar
+
+p
+  a href="/marketplace/#{@item_id}" Tillbaka till varan

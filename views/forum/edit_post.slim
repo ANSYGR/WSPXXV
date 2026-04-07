@@ -1,0 +1,11 @@
+<!-- redigera ett inlägg, endast tillgängligt för inläggsförfattaren eller admin -->
+
+h1 Redigera inlägg
+
+form action="/forum/#{@thread_id}/post/#{@post['id']}/edit" method="post"
+  textarea name="body" rows="10" = @post['body']
+  br
+  button type="submit" Spara ändringar
+
+p
+  a href="/forum/#{@thread_id}" Tillbaka till tråden

@@ -1,3 +1,5 @@
+<!-- Visa en lista över alla varor som är till salu på marknadsplatsen, inklusive titel, bild, beskrivning, pris och säljare. Inloggade användare kan klicka på en vara för att se mer detaljer och skicka meddelanden till säljaren. Inloggade användare kan också lägga upp nya varor till salu. -->
+
 h1 Marketplace
 p Tillgängliga varor till salu:
 - if logged_in?
@@ -15,5 +17,5 @@ p Tillgängliga varor till salu:
         p Pris: #{sprintf('%.2f', item['price'])} kr
         p Säljare: #{item['seller_name'] || 'Okänd'}
         - if item['image_url'] && !item['image_url'].strip.empty?
-          img src=item['image_url'] alt=item['title'] style='max-width:200px;display:block;margin:0.5rem 0;'
+          img src="#{item['image_url']}" alt="#{item['title']}" style='max-width:200px;display:block;margin:0.5rem 0;'
         p = item['description']

@@ -1,4 +1,3 @@
-#integrera libraries
 require 'sinatra'
 require 'slim'
 require 'sqlite3'
@@ -32,6 +31,10 @@ def setup_database
       pwd_digest TEXT NOT NULL
     )
   SQL
+
+  unless column_exists?(db, "user", "role")
+    db.execute("ALTER TABLE user ADD COLUMN role TEXT DEFAULT 'user'")
+  end
 
   db.execute <<~SQL
     CREATE TABLE IF NOT EXISTS forum_threads (
@@ -101,6 +104,10 @@ helpers do
 
   def logged_in?
     !current_user.nil?
+  end
+
+  def admin?
+    current_user && current_user['role'] == 'admin'
   end
 
   def require_login!
@@ -179,7 +186,7 @@ get '/logout' do
   redirect '/'
 end
 
-# Account page showing user's threads, posts, marketplace items and messages
+#  route för användarens konto och översikt över deras trådar, inlägg, marketplace items och meddelanden
 get '/account' do
   require_login!
   @title = 'Mitt konto'
@@ -231,7 +238,6 @@ get '/marketplace' do
   slim :marketplace
 end
 
-# formuläret för att lägga upp en ny item
 get '/marketplace/new' do
   require_login!
   @title = 'Lägg upp item'
@@ -350,6 +356,96 @@ get '/marketplace/messages' do
   slim :'marketplace/messages'
 end
 
+get '/marketplace/:id/edit' do
+  require_login!
+  item_id = params['id']
+  db = get_db
+  item = db.execute("SELECT * FROM marketplace_items WHERE id = ?", [item_id]).first
+  halt 404, "Item not found" unless item
+  halt 403, "Forbidden" unless item['user_id'] == current_user['id'] || admin?
+  @item = item
+  slim :'marketplace/edit'
+end
+
+post '/marketplace/:id/edit' do
+  require_login!
+  item_id = params['id']
+  title = (params['title'] || '').strip
+  description = (params['description'] || '').strip
+  image_url = (params['image_url'] || '').strip
+  price_text = (params['price'] || '').strip
+
+  if title.empty? || description.empty? || price_text.empty?
+    redirect "/marketplace/#{item_id}/edit?error=Alla+fält+måste+fyllas+i"
+  end
+
+  price = price_text.to_f
+  if price <= 0
+    redirect "/marketplace/#{item_id}/edit?error=Pris+måste+vara+större+än+0"
+  end
+
+  db = get_db
+  item = db.execute("SELECT * FROM marketplace_items WHERE id = ?", [item_id]).first
+  halt 404, "Item not found" unless item
+  halt 403, "Forbidden" unless item['user_id'] == current_user['id'] || admin?
+
+  db.execute(
+    'UPDATE marketplace_items SET title = ?, description = ?, image_url = ?, price = ? WHERE id = ?',
+    [title, description, image_url, price, item_id]
+  )
+  redirect "/marketplace/#{item_id}"
+end
+
+post '/marketplace/:id/delete' do
+  require_login!
+  item_id = params['id']
+  db = get_db
+  item = db.execute("SELECT * FROM marketplace_items WHERE id = ?", [item_id]).first
+  halt 404, "Item not found" unless item
+  halt 403, "Forbidden" unless item['user_id'] == current_user['id'] || admin?
+  db.execute("DELETE FROM marketplace_items WHERE id = ?", [item_id])
+  redirect '/marketplace'
+end
+
+get '/marketplace/:item_id/message/:message_id/edit' do
+  require_login!
+  item_id = params['item_id']
+  message_id = params['message_id']
+  db = get_db
+  message = db.execute("SELECT * FROM marketplace_messages WHERE id = ? AND item_id = ?", [message_id, item_id]).first
+  halt 404, "Message not found" unless message
+  halt 403, "Forbidden" unless message['sender_id'] == current_user['id'] || admin?
+  @message = message
+  @item_id = item_id
+  slim :'marketplace/edit_message'
+end
+
+post '/marketplace/:item_id/message/:message_id/edit' do
+  require_login!
+  item_id = params['item_id']
+  message_id = params['message_id']
+  body = (params['body'] || '').strip
+  halt 400, "Body required" if body.empty?
+  db = get_db
+  message = db.execute("SELECT * FROM marketplace_messages WHERE id = ? AND item_id = ?", [message_id, item_id]).first
+  halt 404, "Message not found" unless message
+  halt 403, "Forbidden" unless message['sender_id'] == current_user['id'] || admin?
+  db.execute("UPDATE marketplace_messages SET body = ? WHERE id = ?", [body, message_id])
+  redirect "/marketplace/#{item_id}"
+end
+
+post '/marketplace/:item_id/message/:message_id/delete' do
+  require_login!
+  item_id = params['item_id']
+  message_id = params['message_id']
+  db = get_db
+  message = db.execute("SELECT * FROM marketplace_messages WHERE id = ? AND item_id = ?", [message_id, item_id]).first
+  halt 404, "Message not found" unless message
+  halt 403, "Forbidden" unless message['sender_id'] == current_user['id'] || admin?
+  db.execute("DELETE FROM marketplace_messages WHERE id = ?", [message_id])
+  redirect "/marketplace/#{item_id}"
+end
+
 get '/shop' do
   @title = 'Shop'
   slim :shop
@@ -419,6 +515,7 @@ post '/forum' do
   end
 end
 
+# visa en tråd och dess inlägg
 get '/forum/:id' do
   @title = 'Thread'
   id = params[:id]
@@ -448,6 +545,7 @@ get '/forum/:id' do
   slim :"forum/show"
 end
 
+# svara på en tråd, endast för inloggade användare
 post '/forum/:id/reply' do
   require_login!
 
@@ -465,4 +563,44 @@ post '/forum/:id/reply' do
   )
 
   redirect "/forum/#{id}"
+end
+
+# redigerings- och borttagningsfunktioner för inlägg, endast tillgängliga för inläggsförfattaren eller admin
+get '/forum/:thread_id/post/:post_id/edit' do
+  require_login!
+  thread_id = params['thread_id']
+  post_id = params['post_id']
+  db = get_db
+  post = db.execute("SELECT * FROM forum_posts WHERE id = ? AND thread_id = ?", [post_id, thread_id]).first
+  halt 404, "Post not found" unless post
+  halt 403, "Forbidden" unless post['user_id'] == current_user['id'] || admin?
+  @post = post
+  @thread_id = thread_id
+  slim :'forum/edit_post'
+end
+
+post '/forum/:thread_id/post/:post_id/edit' do
+  require_login!
+  thread_id = params['thread_id']
+  post_id = params['post_id']
+  body = (params['body'] || '').strip
+  halt 400, "Body required" if body.empty?
+  db = get_db
+  post = db.execute("SELECT * FROM forum_posts WHERE id = ? AND thread_id = ?", [post_id, thread_id]).first
+  halt 404, "Post not found" unless post
+  halt 403, "Forbidden" unless post['user_id'] == current_user['id'] || admin?
+  db.execute("UPDATE forum_posts SET body = ? WHERE id = ?", [body, post_id])
+  redirect "/forum/#{thread_id}"
+end
+
+post '/forum/:thread_id/post/:post_id/delete' do
+  require_login!
+  thread_id = params['thread_id']
+  post_id = params['post_id']
+  db = get_db
+  post = db.execute("SELECT * FROM forum_posts WHERE id = ? AND thread_id = ?", [post_id, thread_id]).first
+  halt 404, "Post not found" unless post
+  halt 403, "Forbidden" unless post['user_id'] == current_user['id'] || admin?
+  db.execute("DELETE FROM forum_posts WHERE id = ?", [post_id])
+  redirect "/forum/#{thread_id}"
 end
